@@ -3,7 +3,10 @@
 namespace App\Filament\Resources\Words\Schemas;
 
 use App\Models\Word;
+use App\Support\Pinyin;
+use Closure;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -37,20 +40,30 @@ class WordForm
                                 TextInput::make('pinyin')
                                     ->required()
                                     ->maxLength(100)
-                                    ->placeholder('nǐ hǎo'),
-                                // Polyphonic characters (行 xíng / háng) are separate words: hanzi + pinyin_number is unique.
-                                TextInput::make('pinyin_number')
-                                    ->label('Pinyin with tone numbers')
-                                    ->required()
-                                    ->maxLength(100)
-                                    ->placeholder('ni3hao3')
-                                    ->regex('/^(?:[a-zü]+[1-5])+$/iu')
-                                    ->unique(
-                                        ignoreRecord: true,
-                                        modifyRuleUsing: fn (Unique $rule, Get $get): Unique => $rule->where('hanzi', $get('hanzi')),
-                                    )
-                                    ->validationMessages(['unique' => 'This word (hanzi + pinyin) already exists.'])
-                                    ->helperText('One tone number per syllable, 5 for the neutral tone: xie4xie5.'),
+                                    ->placeholder('nǐ hǎo')
+                                    // Polyphonic characters (行 xíng / háng) are separate words: hanzi + pinyin_number is unique.
+                                    ->rule(fn (Get $get, ?Word $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                                        $pinyinNumber = Pinyin::toNumbered((string) $value);
+
+                                        if ($pinyinNumber === null) {
+                                            $fail('Enter valid tone-marked pinyin, e.g. nǐ hǎo.');
+
+                                            return;
+                                        }
+
+                                        $exists = Word::query()
+                                            ->where('hanzi', $get('hanzi'))
+                                            ->where('pinyin_number', $pinyinNumber)
+                                            ->when($record, fn ($query) => $query->whereKeyNot($record->getKey()))
+                                            ->exists();
+
+                                        if ($exists) {
+                                            $fail('This word (hanzi + pinyin) already exists.');
+                                        }
+                                    }),
+                                // Derived from the tone-marked pinyin (used for search and text to speech).
+                                Hidden::make('pinyin_number')
+                                    ->dehydrateStateUsing(fn (Get $get): ?string => Pinyin::toNumbered((string) $get('pinyin'))),
                                 TextInput::make('han_viet')
                                     ->label('Hán Việt')
                                     ->maxLength(100),

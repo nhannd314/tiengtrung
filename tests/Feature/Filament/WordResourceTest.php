@@ -33,7 +33,6 @@ function wordFormData(array $overrides = []): array
     return [
         'hanzi' => '好',
         'pinyin' => 'hǎo',
-        'pinyin_number' => 'hao3',
         'han_viet' => 'hảo',
         'hsk_level' => 1,
         'meanings' => meaningItems(['adjective', 'tốt'], ['adjective', 'khoẻ'], ['adverb', 'rất']),
@@ -96,28 +95,50 @@ test('the same hanzi can exist with another reading, but not twice with the same
     Word::factory()->create(['hanzi' => '行', 'pinyin' => 'xíng', 'pinyin_number' => 'xing2']);
 
     Livewire::test(CreateWord::class)
-        ->fillForm(wordFormData(['hanzi' => '行', 'pinyin' => 'xíng', 'pinyin_number' => 'xing2']))
+        ->fillForm(wordFormData(['hanzi' => '行', 'pinyin' => 'xíng']))
         ->call('create')
-        ->assertHasFormErrors(['pinyin_number' => 'unique']);
+        ->assertHasFormErrors(['pinyin']);
 
     Livewire::test(CreateWord::class)
-        ->fillForm(wordFormData(['hanzi' => '行', 'pinyin' => 'háng', 'pinyin_number' => 'hang2']))
+        ->fillForm(wordFormData(['hanzi' => '行', 'pinyin' => 'háng']))
         ->call('create')
         ->assertHasNoFormErrors();
+
+    expect(Word::where('hanzi', '行')->pluck('pinyin_number')->sort()->values()->all())->toBe(['hang2', 'xing2']);
 });
 
-test('pinyin with tone numbers must have a tone per syllable', function (string $value, bool $valid) {
+test('pinyin with tone numbers is derived from the tone-marked pinyin', function (string $pinyin, ?string $pinyinNumber) {
     $test = Livewire::test(CreateWord::class)
-        ->fillForm(wordFormData(['pinyin_number' => $value]))
+        ->fillForm(wordFormData(['pinyin' => $pinyin]))
         ->call('create');
 
-    $valid ? $test->assertHasNoFormErrors() : $test->assertHasFormErrors(['pinyin_number' => 'regex']);
+    if ($pinyinNumber === null) {
+        $test->assertHasFormErrors(['pinyin']);
+        expect(Word::count())->toBe(0);
+
+        return;
+    }
+
+    $test->assertHasNoFormErrors();
+    expect(Word::sole()->pinyin_number)->toBe($pinyinNumber);
 })->with([
-    ['xie4xie5', true],
-    ['lü4', true],
-    ['nihao', false],
-    ['ni3 hao3', false],
+    ['xièxie', 'xie4xie5'],
+    ['lǜ', 'lü4'],
+    ['nǐ hǎo', 'ni3hao3'],
+    ['xyz', null],
+    ['nǐǎ', null],
 ]);
+
+test('editing the pinyin updates the pinyin with tone numbers', function () {
+    $word = Word::factory()->create(['hanzi' => '行', 'pinyin' => 'xíng', 'pinyin_number' => 'xing2']);
+
+    Livewire::test(EditWord::class, ['record' => $word->getRouteKey()])
+        ->fillForm(['pinyin' => 'háng'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($word->fresh()->pinyin_number)->toBe('hang2');
+});
 
 test('uploaded images are shown from the public disk and cleaned up when replaced', function () {
     Storage::fake(Word::IMAGE_DISK);
