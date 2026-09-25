@@ -1,0 +1,38 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+/* Dark mode is driven by the .dark class on <html> (set by the theme switcher) instead of the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Show the icon matching the selected theme option (data-theme on <html>). */
+@custom-variant theme-light (&:where([data-theme=light] *));
+@custom-variant theme-dark (&:where([data-theme=dark] *));
+@custom-variant theme-system (&:where([data-theme=system] *));
+
+/* Admin-authored lesson HTML. */
+@layer components {
+    .lesson-content {
+        @apply flex flex-col gap-4 leading-relaxed text-stone-700 dark:text-stone-300;
+
+        h2 { @apply mt-2 text-xl font-bold text-stone-900 dark:text-stone-100; }
+        h3 { @apply mt-2 text-lg font-semibold text-stone-900 dark:text-stone-100; }
+        a { @apply font-medium text-red-600 underline underline-offset-2; }
+        ul { @apply list-disc pl-6; }
+        ol { @apply list-decimal pl-6; }
+        li { @apply mt-1; }
+        strong { @apply font-semibold text-stone-900 dark:text-stone-100; }
+        blockquote { @apply border-l-4 border-red-200 pl-4 italic dark:border-red-900; }
+        img { @apply rounded-xl; }
+        table { @apply w-full border-collapse text-sm; }
+        th, td { @apply border border-stone-200 px-3 py-2 text-left dark:border-stone-700; }
+        th { @apply bg-stone-50 font-semibold dark:bg-stone-800; }
+    }
+}
+
+@theme {
+    /* Inter for Latin/Vietnamese; it has no Chinese glyphs, so hanzi fall through to the system CJK fonts. */
+    --font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Noto Sans CJK SC', ui-sans-serif,
+        system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
