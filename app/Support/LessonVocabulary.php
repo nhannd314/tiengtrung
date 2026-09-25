@@ -58,6 +58,55 @@ class LessonVocabulary
     }
 
     /**
+     * Replace lines that hold only a word's hanzi (no "|") with the full lines of the dictionary words that have
+     * that hanzi, all readings of it. Hanzi not in the dictionary are dropped, as are words already listed in the text.
+     */
+    public static function expand(?string $text): string
+    {
+        $lines = preg_split('/\R/u', (string) $text);
+
+        $hanziLines = [];
+        $listed = [];
+        foreach ($lines as $index => $line) {
+            if (str_contains($line, '|')) {
+                try {
+                    $entry = self::parseLine($line);
+                    $listed[$entry['hanzi'].'|'.$entry['pinyin_number']] = true;
+                } catch (InvalidArgumentException) {
+                    // Reported when the text is parsed.
+                }
+            } elseif (trim($line) !== '') {
+                $hanziLines[$index] = trim($line);
+            }
+        }
+
+        if ($hanziLines === []) {
+            return (string) $text;
+        }
+
+        $words = Word::query()
+            ->whereIn('hanzi', $hanziLines)
+            ->orderBy('id')
+            ->get()
+            ->groupBy('hanzi');
+
+        foreach ($hanziLines as $index => $hanzi) {
+            $found = [];
+            foreach ($words->get($hanzi, []) as $word) {
+                $key = $word->hanzi.'|'.$word->pinyin_number;
+                if (! isset($listed[$key])) {
+                    $listed[$key] = true;
+                    $found[] = self::format([$word]);
+                }
+            }
+
+            $lines[$index] = $found === [] ? null : implode("\n", $found);
+        }
+
+        return implode("\n", array_filter($lines, fn (?string $line): bool => $line !== null));
+    }
+
+    /**
      * The lesson's words as text, in lesson order.
      *
      * @param  iterable<Word>  $words
@@ -80,7 +129,7 @@ class LessonVocabulary
      */
     public static function sync(Lesson $lesson, ?string $text): void
     {
-        $entries = self::parse($text);
+        $entries = self::parse(self::expand($text));
 
         DB::transaction(function () use ($lesson, $entries): void {
             $words = Collection::make($entries)->mapWithKeys(function (array $entry, int $index) use ($lesson): array {

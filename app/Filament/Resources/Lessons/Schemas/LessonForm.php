@@ -119,12 +119,20 @@ class LessonForm
             ->hiddenLabel()
             ->rows(10)
             ->placeholder('研究|yánjiū|nghiên cứu|noun:nghiên cứu|verb:tìm hiểu, nghiên cứu')
-            ->helperText('Parts of speech: '.implode(', ', array_keys(Word::PARTS_OF_SPEECH)).'. Hán Việt may be left empty: 研究|yánjiū||noun:nghiên cứu')
+            ->helperText('Parts of speech: '.implode(', ', array_keys(Word::PARTS_OF_SPEECH)).'. Hán Việt may be left empty: 研究|yánjiū||noun:nghiên cứu. A line with only the hanzi (e.g. 研究) takes the word from the dictionary; hanzi not found there are removed.')
             ->formatStateUsing(fn (?Lesson $record): string => $record ? LessonVocabulary::format($record->words) : '')
+            // A line with only hanzi is filled in from the dictionary when leaving the field, or dropped if not found.
+            ->live(onBlur: true)
+            ->afterStateUpdated(function (?string $state, Set $set): void {
+                $expanded = LessonVocabulary::expand($state);
+                if ($expanded !== (string) $state) {
+                    $set('vocabulary', $expanded);
+                }
+            })
             ->rules([
                 fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
                     try {
-                        LessonVocabulary::parse($value);
+                        LessonVocabulary::parse(LessonVocabulary::expand($value));
                     } catch (InvalidArgumentException $e) {
                         $fail($e->getMessage());
                     }

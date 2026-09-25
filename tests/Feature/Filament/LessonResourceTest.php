@@ -205,6 +205,23 @@ test('the edit form shows the vocabulary and saving it updates, reorders and rem
         ->and($cha->fresh())->not->toBeNull();
 });
 
+test('hanzi-only vocabulary lines are filled in from the dictionary and unknown hanzi are removed', function () {
+    $hao = Word::factory()->create(['hanzi' => '好', 'pinyin' => 'hǎo', 'pinyin_number' => 'hao3', 'han_viet' => 'hảo', 'meanings' => [['adjective', 'tốt']]]);
+    $hang = Word::factory()->create(['hanzi' => '行', 'pinyin' => 'háng', 'pinyin_number' => 'hang2', 'han_viet' => null, 'meanings' => 'hàng']);
+    $xing = Word::factory()->create(['hanzi' => '行', 'pinyin' => 'xíng', 'pinyin_number' => 'xing2', 'han_viet' => null, 'meanings' => 'đi']);
+
+    Livewire::test(CreateLesson::class)
+        ->fillForm(['course_id' => $this->course->id, 'title' => 'Bài 1'])
+        ->set('data.vocabulary', "好\n不存在\n谢谢|xièxie||cảm ơn\n行\n好")
+        ->assertSet('data.vocabulary', "好|hǎo|hảo|adjective:tốt\n谢谢|xièxie||cảm ơn\n行|háng||hàng\n行|xíng||đi")
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(Lesson::sole()->words->pluck('hanzi', 'pinyin')->all())
+        ->toBe(['hǎo' => '好', 'xièxie' => '谢谢', 'háng' => '行', 'xíng' => '行'])
+        ->and(Word::where('hanzi', '不存在')->exists())->toBeFalse();
+});
+
 test('invalid vocabulary lines are reported with their line numbers and nothing is saved', function (string $vocabulary, string $error) {
     Livewire::test(CreateLesson::class)
         ->fillForm(['course_id' => $this->course->id, 'title' => 'Bài 1', 'vocabulary' => $vocabulary])
